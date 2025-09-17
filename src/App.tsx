@@ -9,6 +9,8 @@ import ReportIssue from "./pages/ReportIssue";
 import Feed from "./pages/Feed";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
+import Auth from "./pages/Auth";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -20,9 +22,10 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/report" element={<ReportIssue />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/report" element={<ProtectedRoute><ReportIssue /></ProtectedRoute>} />
           <Route path="/feed" element={<Feed />} />
-          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

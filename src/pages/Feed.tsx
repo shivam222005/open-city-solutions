@@ -4,59 +4,23 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Heart, MessageCircle, Share, MapPin, Clock, ArrowLeft, Filter, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useReports } from "@/hooks/useReports";
+import { supabase } from "@/integrations/supabase/client";
+import { Database } from "@/integrations/supabase/types";
 
-// Mock data for demonstration
-const mockReports = [
-  {
-    id: 1,
-    user: { name: "Sarah Chen", avatar: null, isAnonymous: false },
-    timeAgo: "2 hours ago",
-    title: "Large pothole on 5th Street",
-    description: "Huge pothole near the market that's getting worse with rain. Multiple cars have hit it today.",
-    category: "pothole",
-    location: "5th Street, Downtown",
-    status: "acknowledged",
-    priority: "high",
-    likes: 24,
-    comments: 8,
-    media: [{ type: "image", url: "/api/placeholder/400/300" }]
-  },
-  {
-    id: 2,
-    user: { name: "Anonymous", avatar: null, isAnonymous: true },
-    timeAgo: "4 hours ago", 
-    title: "Broken streetlight creating safety hazard",
-    description: "Streetlight has been out for over a week. Very dark at night, making it unsafe for pedestrians.",
-    category: "streetlight",
-    location: "Park Avenue & 3rd St",
-    status: "in_progress",
-    priority: "medium",
-    likes: 15,
-    comments: 3,
-    media: [{ type: "image", url: "/api/placeholder/400/300" }]
-  },
-  {
-    id: 3,
-    user: { name: "Mike Rodriguez", avatar: null, isAnonymous: false },
-    timeAgo: "1 day ago",
-    title: "Overflowing garbage bins",
-    description: "Bins haven't been emptied in days. Attracting rats and creating smell.",
-    category: "sanitation", 
-    location: "Central Plaza",
-    status: "resolved",
-    priority: "medium",
-    likes: 31,
-    comments: 12,
-    media: [{ type: "image", url: "/api/placeholder/400/300" }]
-  }
-];
+type ReportWithProfile = Database['public']['Tables']['reports']['Row'] & {
+  profiles: any;
+};
+
+// Remove the mock data - we no longer need it
 
 const statusConfig = {
   submitted: { label: "Submitted", color: "bg-status-submitted", textColor: "text-yellow-800" },
   acknowledged: { label: "Acknowledged", color: "bg-status-acknowledged", textColor: "text-blue-800" },
   in_progress: { label: "In Progress", color: "bg-status-progress", textColor: "text-purple-800" },
-  resolved: { label: "Resolved", color: "bg-status-resolved", textColor: "text-green-800" }
+  resolved: { label: "Resolved", color: "bg-status-resolved", textColor: "text-green-800" },
+  closed: { label: "Closed", color: "bg-muted", textColor: "text-muted-foreground" }
 };
 
 const categoryEmojis = {
@@ -71,6 +35,61 @@ const categoryEmojis = {
 
 export default function Feed() {
   const [filter, setFilter] = useState("all");
+  const [reports, setReports] = useState<ReportWithProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+  const fetchReports = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('reports')
+        .select(`
+          *,
+          profiles!left (
+            display_name
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      setReports(data as any || []);
+    } catch (error) {
+      console.error('Error fetching reports:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return "Just now";
+    if (diffInHours < 24) return `${diffInHours} hours ago`;
+    return `${Math.floor(diffInHours / 24)} days ago`;
+  };
+
+  const getUserDisplayName = (report: ReportWithProfile) => {
+    if (report.is_anonymous) return "Anonymous";
+    return report.profiles?.display_name || "Unknown User";
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 bg-gradient-primary rounded-lg animate-pulse mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading reports...</p>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="min-h-screen bg-background">
@@ -85,7 +104,7 @@ export default function Feed() {
                 </Link>
               </Button>
               <h1 className="text-xl font-bold text-foreground">Community Feed</h1>
-              <Badge variant="secondary">1,247 reports</Badge>
+              <Badge variant="secondary">{reports.length} reports</Badge>
             </div>
             
             <div className="flex items-center space-x-2">
@@ -139,106 +158,102 @@ export default function Feed() {
       {/* Feed */}
       <div className="container mx-auto px-4 py-6 max-w-2xl">
         <div className="space-y-6">
-          {mockReports.map((report) => (
-            <Card key={report.id} className="shadow-card hover:shadow-civic transition-all duration-300">
-              <CardContent className="p-0">
-                {/* Header */}
-                <div className="p-4 pb-0">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <Avatar className="w-10 h-10">
-                        <AvatarImage src={report.user.avatar} />
-                        <AvatarFallback className={report.user.isAnonymous ? "bg-muted" : "bg-primary text-primary-foreground"}>
-                          {report.user.isAnonymous ? "?" : report.user.name.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-semibold text-sm">{report.user.name}</p>
-                        <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                          <Clock className="w-3 h-3" />
-                          <span>{report.timeAgo}</span>
-                          {report.priority === "high" && (
-                            <Badge variant="destructive" className="text-xs px-1.5 py-0">High Priority</Badge>
-                          )}
+          {reports.length === 0 ? (
+            <Card className="shadow-card">
+              <CardContent className="p-8 text-center">
+                <p className="text-muted-foreground mb-4">No reports yet.</p>
+                <Button asChild>
+                  <Link to="/report">Submit the First Report</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            reports.map((report) => (
+              <Card key={report.id} className="shadow-card hover:shadow-civic transition-all duration-300">
+                <CardContent className="p-0">
+                  {/* Header */}
+                  <div className="p-4 pb-0">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <Avatar className="w-10 h-10">
+                          <AvatarFallback className={report.is_anonymous ? "bg-muted" : "bg-primary text-primary-foreground"}>
+                            {report.is_anonymous ? "?" : getUserDisplayName(report).charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-semibold text-sm">{getUserDisplayName(report)}</p>
+                          <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                            <Clock className="w-3 h-3" />
+                            <span>{getTimeAgo(report.created_at)}</span>
+                            {report.priority === "high" && (
+                              <Badge variant="destructive" className="text-xs px-1.5 py-0">High Priority</Badge>
+                            )}
+                          </div>
                         </div>
+                      </div>
+                      
+                      <Badge 
+                        className={`${statusConfig[report.status as keyof typeof statusConfig].color} ${statusConfig[report.status as keyof typeof statusConfig].textColor} border-0`}
+                      >
+                        {statusConfig[report.status as keyof typeof statusConfig].label}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Content */}
+                  <div className="p-4 py-3">
+                    <div className="flex items-start space-x-2 mb-2">
+                      <span className="text-lg">{categoryEmojis[report.category as keyof typeof categoryEmojis]}</span>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-foreground mb-1">{report.title}</h3>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{report.description}</p>
                       </div>
                     </div>
                     
-                    <Badge 
-                      className={`${statusConfig[report.status as keyof typeof statusConfig].color} ${statusConfig[report.status as keyof typeof statusConfig].textColor} border-0`}
-                    >
-                      {statusConfig[report.status as keyof typeof statusConfig].label}
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Content */}
-                <div className="p-4 py-3">
-                  <div className="flex items-start space-x-2 mb-2">
-                    <span className="text-lg">{categoryEmojis[report.category as keyof typeof categoryEmojis]}</span>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-foreground mb-1">{report.title}</h3>
-                      <p className="text-sm text-muted-foreground leading-relaxed">{report.description}</p>
+                    <div className="flex items-center space-x-1 text-xs text-muted-foreground mt-2">
+                      <MapPin className="w-3 h-3" />
+                      <span>{report.location_address}</span>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center space-x-1 text-xs text-muted-foreground mt-2">
-                    <MapPin className="w-3 h-3" />
-                    <span>{report.location}</span>
-                  </div>
-                </div>
 
-                {/* Media */}
-                {report.media.length > 0 && (
-                  <div className="aspect-video bg-muted relative overflow-hidden">
-                    <img 
-                      src={report.media[0].url} 
-                      alt="Report media"
-                      className="w-full h-full object-cover"
-                    />
-                    {report.media.length > 1 && (
-                      <Badge className="absolute top-2 right-2 bg-black/50 text-white border-0">
-                        +{report.media.length - 1} more
-                      </Badge>
-                    )}
-                  </div>
-                )}
-
-                {/* Actions */}
-                <div className="p-4 pt-3 border-t">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-6">
-                      <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive">
-                        <Heart className="w-4 h-4 mr-1" />
-                        <span className="text-sm">{report.likes}</span>
-                      </Button>
+                  {/* Actions */}
+                  <div className="p-4 pt-3 border-t">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-6">
+                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive">
+                          <Heart className="w-4 h-4 mr-1" />
+                          <span className="text-sm">0</span>
+                        </Button>
+                        
+                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
+                          <MessageCircle className="w-4 h-4 mr-1" />
+                          <span className="text-sm">0</span>
+                        </Button>
+                        
+                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
+                          <Share className="w-4 h-4 mr-1" />
+                          <span className="text-sm">Share</span>
+                        </Button>
+                      </div>
                       
-                      <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
-                        <MessageCircle className="w-4 h-4 mr-1" />
-                        <span className="text-sm">{report.comments}</span>
-                      </Button>
-                      
-                      <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
-                        <Share className="w-4 h-4 mr-1" />
-                        <span className="text-sm">Share</span>
+                      <Button variant="outline" size="sm">
+                        Track
                       </Button>
                     </div>
-                    
-                    <Button variant="outline" size="sm">
-                      Track
-                    </Button>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
 
         {/* Load More */}
-        <div className="text-center py-8">
-          <Button variant="outline" className="px-8">
-            Load More Reports
-          </Button>
+        {reports.length > 0 && (
+          <div className="text-center py-8">
+            <Button variant="outline" className="px-8" onClick={fetchReports}>
+              Refresh Reports
+            </Button>
+          </div>
+        )}
         </div>
       </div>
     </div>

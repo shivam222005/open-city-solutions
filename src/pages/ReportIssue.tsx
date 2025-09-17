@@ -7,12 +7,52 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Camera, MapPin, Mic, Upload, Shield, ArrowLeft } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useReports } from "@/hooks/useReports";
+import { Database } from "@/integrations/supabase/types";
+
+type ReportCategory = Database['public']['Enums']['report_category'];
+type ReportPriority = Database['public']['Enums']['report_priority'];
 
 export default function ReportIssue() {
+  const navigate = useNavigate();
+  const { createReport } = useReports();
+  
   const [isAnonymous, setIsAnonymous] = useState(false);
-  const [priority, setPriority] = useState("medium");
+  const [priority, setPriority] = useState<ReportPriority>("medium");
+  const [category, setCategory] = useState<ReportCategory | "">("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [locationAddress, setLocationAddress] = useState("123 Main St, Downtown Area");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!category || !title.trim() || !description.trim()) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    setSubmitting(true);
+    
+    const reportData = {
+      title: title.trim(),
+      description: description.trim(),
+      category,
+      priority,
+      location_address: locationAddress,
+      is_anonymous: isAnonymous
+    };
+
+    const { data, error } = await createReport(reportData);
+    
+    if (!error && data) {
+      navigate("/feed");
+    }
+    
+    setSubmitting(false);
+  };
   
   return (
     <div className="min-h-screen bg-background">
@@ -41,6 +81,20 @@ export default function ReportIssue() {
           </CardHeader>
           
           <CardContent className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Title */}
+            <div className="space-y-3">
+              <Label htmlFor="title" className="text-base font-semibold">Issue Title</Label>
+              <Input
+                id="title"
+                type="text"
+                placeholder="Brief, clear title (e.g., 'Large pothole on 5th Street')"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
+              />
+            </div>
+
             {/* Photo Upload */}
             <div className="space-y-3">
               <Label className="text-base font-semibold">Add Photo / Video / Voice</Label>
@@ -70,23 +124,27 @@ export default function ReportIssue() {
             <div className="space-y-3">
               <Label className="text-base font-semibold">Location</Label>
               <div className="flex space-x-2">
-                <Button variant="outline" className="flex-1 justify-start">
+                <Button type="button" variant="outline" className="flex-1 justify-start">
                   <MapPin className="w-4 h-4 mr-2 text-accent" />
                   Auto-detected Location
                 </Button>
-                <Button variant="ghost" size="sm">
+                <Button type="button" variant="ghost" size="sm">
                   Edit
                 </Button>
               </div>
-              <p className="text-sm text-muted-foreground">
-                📍 123 Main St, Downtown Area
-              </p>
+              <Input
+                type="text"
+                value={locationAddress}
+                onChange={(e) => setLocationAddress(e.target.value)}
+                placeholder="Enter location address"
+                className="text-sm"
+              />
             </div>
 
             {/* Category */}
             <div className="space-y-3">
               <Label htmlFor="category" className="text-base font-semibold">Issue Category</Label>
-              <Select>
+              <Select value={category} onValueChange={(value) => setCategory(value as ReportCategory)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
@@ -113,6 +171,9 @@ export default function ReportIssue() {
                 id="description"
                 placeholder="Example: Large pothole on 5th lane near the market. It's been there for 2 weeks and getting worse with rain..."
                 className="min-h-[120px]"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                required
               />
             </div>
 
@@ -185,13 +246,19 @@ export default function ReportIssue() {
 
             {/* Submit Buttons */}
             <div className="flex space-x-3 pt-4">
-              <Button className="flex-1 shadow-button" size="lg">
-                Submit Report
+              <Button 
+                type="submit" 
+                className="flex-1 shadow-button" 
+                size="lg"
+                disabled={submitting}
+              >
+                {submitting ? "Submitting..." : "Submit Report"}
               </Button>
-              <Button variant="outline" size="lg">
+              <Button type="button" variant="outline" size="lg">
                 Save Draft
               </Button>
             </div>
+            </form>
 
             <p className="text-xs text-muted-foreground text-center">
               By submitting, you agree to our community guidelines. 

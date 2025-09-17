@@ -3,9 +3,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Camera, MapPin, Bell, Shield, TrendingUp, Users } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import heroImage from "@/assets/civic-hero.jpg";
 
 export default function Home() {
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -24,7 +31,18 @@ export default function Home() {
             <Link to="/admin" className="text-muted-foreground hover:text-foreground transition-colors">
               Admin
             </Link>
-            <Button variant="outline" size="sm">Sign In</Button>
+            {!user ? (
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/auth">Sign In</Link>
+              </Button>
+            ) : (
+              <div className="flex items-center space-x-4">
+                <span className="text-muted-foreground">Welcome, {user.user_metadata?.display_name || user.email}</span>
+                <Button variant="outline" size="sm" onClick={handleSignOut}>
+                  Sign Out
+                </Button>
+              </div>
+            )}
           </nav>
         </div>
       </header>
