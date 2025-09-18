@@ -40,6 +40,27 @@ export default function Feed() {
 
   useEffect(() => {
     fetchReports();
+    
+    // Set up real-time subscription for new reports
+    const channel = supabase
+      .channel('schema-db-changes')  
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reports'
+        },
+        () => {
+          // Refresh reports when changes occur
+          fetchReports();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchReports = async () => {

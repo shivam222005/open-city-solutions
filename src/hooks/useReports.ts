@@ -26,10 +26,17 @@ interface Report {
   priority: ReportPriority;
   status: ReportStatus;
   location_address: string;
+  latitude?: number | null;
+  longitude?: number | null;
   is_anonymous: boolean;
   created_at: string;
   updated_at: string;
+  resolved_at?: string | null;
   user_id: string | null;
+  assignee_id?: string | null;
+  department?: string | null;
+  internal_notes?: string | null;
+  media_urls?: string[] | null;
 }
 
 export function useReports() {
@@ -61,6 +68,27 @@ export function useReports() {
 
   useEffect(() => {
     fetchReports();
+    
+    // Set up real-time subscription for reports changes
+    const channel = supabase
+      .channel('reports-changes')  
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reports'
+        },
+        () => {
+          // Refresh reports when changes occur
+          fetchReports();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const createReport = async (reportData: ReportData) => {

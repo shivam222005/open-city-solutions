@@ -24,10 +24,29 @@ import { useState } from "react";
 import { useReports } from "@/hooks/useReports";
 import { Database } from "@/integrations/supabase/types";
 
-type ReportRow = Database['public']['Tables']['reports']['Row'];
 type ReportStatus = Database['public']['Enums']['report_status'];
 
-// Remove mock data - using real data now
+// Use the Report interface from useReports hook
+interface Report {
+  id: string;
+  title: string;
+  description: string;
+  category: Database['public']['Enums']['report_category'];
+  priority: Database['public']['Enums']['report_priority'];
+  status: ReportStatus;
+  location_address: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  is_anonymous: boolean;
+  created_at: string;
+  updated_at: string;
+  resolved_at?: string | null;
+  user_id: string | null;
+  assignee_id?: string | null;
+  department?: string | null;
+  internal_notes?: string | null;
+  media_urls?: string[] | null;
+}
 
 const statusConfig = {
   submitted: { label: "Submitted", color: "bg-status-submitted text-yellow-800", icon: Clock },
@@ -38,7 +57,7 @@ const statusConfig = {
 
 export default function AdminDashboard() {
   const { reports, loading, updateReportStatus } = useReports();
-  const [selectedReport, setSelectedReport] = useState<ReportRow | null>(null);
+  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [filter, setFilter] = useState("all");
 
   // Set first report as selected when reports load
@@ -66,7 +85,7 @@ export default function AdminDashboard() {
 
   const filteredReports = getFilteredReports();
   const pendingReports = reports.filter(r => r.status === "submitted").length;
-  const inProgressReports = reports.filter(r => r.status === "in_progress").length;
+      const inProgressReports = reports.filter(r => r.status === "in_progress").length;
 
   if (loading) {
     return (
