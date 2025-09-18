@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
 
 type ReportWithProfile = Database['public']['Tables']['reports']['Row'] & {
-  user_display_name: string | null;
+  profiles: any;
 };
 
 // Remove the mock data - we no longer need it
@@ -67,13 +67,18 @@ export default function Feed() {
     try {
       setLoading(true);
       const { data, error } = await supabase
-        .from('reports_with_profiles')
-        .select('*')
+        .from('reports')
+        .select(`
+          *,
+          profiles!left (
+            display_name
+          )
+        `)
         .order('created_at', { ascending: false })
         .limit(10);
 
       if (error) throw error;
-      setReports(data || []);
+      setReports(data as any || []);
     } catch (error) {
       console.error('Error fetching reports:', error);
     } finally {
@@ -93,7 +98,7 @@ export default function Feed() {
 
   const getUserDisplayName = (report: ReportWithProfile) => {
     if (report.is_anonymous) return "Anonymous";
-    return report.user_display_name || "Unknown User";
+    return report.profiles?.display_name || "Unknown User";
   };
 
   if (loading) {
