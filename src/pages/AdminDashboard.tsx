@@ -21,46 +21,13 @@ import {
   MessageSquare
 } from "lucide-react";
 import { useState } from "react";
+import { useReports } from "@/hooks/useReports";
+import { Database } from "@/integrations/supabase/types";
 
-// Mock data for admin dashboard
-const mockReports = [
-  {
-    id: "R-001234",
-    title: "Large pothole on 5th Street",
-    category: "Road/Infrastructure",
-    status: "submitted",
-    priority: "high",
-    submittedAt: "2025-09-16 14:30",
-    location: "5th Street, Downtown",
-    department: "Public Works",
-    assignee: null,
-    description: "Huge pothole near the market that's getting worse with rain."
-  },
-  {
-    id: "R-001235", 
-    title: "Broken streetlight creating safety hazard",
-    category: "Electrical/Lighting",
-    status: "acknowledged",
-    priority: "medium",
-    submittedAt: "2025-09-16 10:15",
-    location: "Park Avenue & 3rd St",
-    department: "Electrical Dept",
-    assignee: "John Smith",
-    description: "Streetlight has been out for over a week."
-  },
-  {
-    id: "R-001236",
-    title: "Overflowing garbage bins",
-    category: "Sanitation",
-    status: "in_progress", 
-    priority: "medium",
-    submittedAt: "2025-09-15 16:45",
-    location: "Central Plaza",
-    department: "Sanitation",
-    assignee: "Maria Garcia",
-    description: "Bins haven't been emptied in days."
-  }
-];
+type ReportRow = Database['public']['Tables']['reports']['Row'];
+type ReportStatus = Database['public']['Enums']['report_status'];
+
+// Remove mock data - using real data now
 
 const statusConfig = {
   submitted: { label: "Submitted", color: "bg-status-submitted text-yellow-800", icon: Clock },
@@ -70,8 +37,47 @@ const statusConfig = {
 };
 
 export default function AdminDashboard() {
-  const [selectedReport, setSelectedReport] = useState(mockReports[0]);
+  const { reports, loading, updateReportStatus } = useReports();
+  const [selectedReport, setSelectedReport] = useState<ReportRow | null>(null);
   const [filter, setFilter] = useState("all");
+
+  // Set first report as selected when reports load
+  if (!selectedReport && reports.length > 0) {
+    setSelectedReport(reports[0]);
+  }
+
+  const handleStatusUpdate = async (reportId: string, status: ReportStatus, assigneeId?: string) => {
+    await updateReportStatus(reportId, status, assigneeId);
+  };
+
+  const getFilteredReports = () => {
+    switch (filter) {
+      case "urgent":
+        return reports.filter(r => r.priority === "high");
+      case "unassigned":
+        return reports.filter(r => !r.assignee_id);
+      case "today":
+        const today = new Date().toDateString();
+        return reports.filter(r => new Date(r.created_at).toDateString() === today);
+      default:
+        return reports;
+    }
+  };
+
+  const filteredReports = getFilteredReports();
+  const pendingReports = reports.filter(r => r.status === "submitted").length;
+  const inProgressReports = reports.filter(r => r.status === "in_progress").length;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 bg-gradient-primary rounded-lg animate-pulse mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -109,7 +115,7 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Reports</p>
-                  <p className="text-2xl font-bold">1,247</p>
+                  <p className="text-2xl font-bold">{reports.length}</p>
                   <p className="text-xs text-accent">+12% from last month</p>
                 </div>
                 <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
@@ -124,7 +130,7 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Pending Review</p>
-                  <p className="text-2xl font-bold text-warning">23</p>
+                  <p className="text-2xl font-bold text-warning">{pendingReports}</p>
                   <p className="text-xs text-muted-foreground">Need assignment</p>
                 </div>
                 <div className="w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center">
@@ -139,7 +145,7 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">In Progress</p>
-                  <p className="text-2xl font-bold text-primary">156</p>
+                  <p className="text-2xl font-bold text-primary">{inProgressReports}</p>
                   <p className="text-xs text-muted-foreground">Being worked on</p>
                 </div>
                 <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
@@ -219,54 +225,62 @@ export default function AdminDashboard() {
               
               <CardContent className="p-0">
                 <div className="divide-y">
-                  {mockReports.map((report) => {
-                    const StatusIcon = statusConfig[report.status as keyof typeof statusConfig].icon;
-                    return (
-                      <div 
-                        key={report.id}
-                        className={`p-4 cursor-pointer hover:bg-secondary/50 transition-colors ${
-                          selectedReport.id === report.id ? 'bg-primary/5 border-r-2 border-r-primary' : ''
-                        }`}
-                        onClick={() => setSelectedReport(report)}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <span className="text-sm font-mono text-muted-foreground">{report.id}</span>
-                              {report.priority === "high" && (
-                                <Badge variant="destructive" className="text-xs">High Priority</Badge>
+                  {filteredReports.length === 0 ? (
+                    <div className="p-8 text-center text-muted-foreground">
+                      No reports found for the selected filter.
+                    </div>
+                  ) : (
+                    filteredReports.map((report) => {
+                      const StatusIcon = statusConfig[report.status as keyof typeof statusConfig].icon;
+                      const formattedDate = new Date(report.created_at).toLocaleString();
+                      
+                      return (
+                        <div 
+                          key={report.id}
+                          className={`p-4 cursor-pointer hover:bg-secondary/50 transition-colors ${
+                            selectedReport?.id === report.id ? 'bg-primary/5 border-r-2 border-r-primary' : ''
+                          }`}
+                          onClick={() => setSelectedReport(report)}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2 mb-1">
+                                <span className="text-sm font-mono text-muted-foreground">R-{report.id.slice(-6)}</span>
+                                {report.priority === "high" && (
+                                  <Badge variant="destructive" className="text-xs">High Priority</Badge>
+                                )}
+                                <Badge className={`text-xs ${statusConfig[report.status as keyof typeof statusConfig].color}`}>
+                                  <StatusIcon className="w-3 h-3 mr-1" />
+                                  {statusConfig[report.status as keyof typeof statusConfig].label}
+                                </Badge>
+                              </div>
+                              
+                              <h3 className="font-semibold text-sm mb-1">{report.title}</h3>
+                              <p className="text-xs text-muted-foreground mb-2">{report.description}</p>
+                              
+                              <div className="flex items-center space-x-4 text-xs text-muted-foreground">
+                                <div className="flex items-center space-x-1">
+                                  <MapPin className="w-3 h-3" />
+                                  <span>{report.location_address}</span>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <Calendar className="w-3 h-3" />
+                                  <span>{formattedDate}</span>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="text-right text-xs">
+                              <p className="text-muted-foreground mb-1">{report.department || 'Unassigned'}</p>
+                              {report.assignee_id && (
+                                <p className="font-medium text-primary">Assigned</p>
                               )}
-                              <Badge className={`text-xs ${statusConfig[report.status as keyof typeof statusConfig].color}`}>
-                                <StatusIcon className="w-3 h-3 mr-1" />
-                                {statusConfig[report.status as keyof typeof statusConfig].label}
-                              </Badge>
                             </div>
-                            
-                            <h3 className="font-semibold text-sm mb-1">{report.title}</h3>
-                            <p className="text-xs text-muted-foreground mb-2">{report.description}</p>
-                            
-                            <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                              <div className="flex items-center space-x-1">
-                                <MapPin className="w-3 h-3" />
-                                <span>{report.location}</span>
-                              </div>
-                              <div className="flex items-center space-x-1">
-                                <Calendar className="w-3 h-3" />
-                                <span>{report.submittedAt}</span>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="text-right text-xs">
-                            <p className="text-muted-foreground mb-1">{report.department}</p>
-                            {report.assignee && (
-                              <p className="font-medium text-primary">{report.assignee}</p>
-                            )}
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -278,112 +292,132 @@ export default function AdminDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>Report Details</span>
-                  <span className="text-sm font-mono text-muted-foreground">{selectedReport.id}</span>
+                  {selectedReport && (
+                    <span className="text-sm font-mono text-muted-foreground">R-{selectedReport.id.slice(-6)}</span>
+                  )}
                 </CardTitle>
               </CardHeader>
               
               <CardContent className="space-y-6">
-                <div>
-                  <h3 className="font-semibold mb-2">{selectedReport.title}</h3>
-                  <p className="text-sm text-muted-foreground mb-4">{selectedReport.description}</p>
-                  
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Category:</span>
-                      <span className="font-medium">{selectedReport.category}</span>
+                {selectedReport ? (
+                  <>
+                    <div>
+                      <h3 className="font-semibold mb-2">{selectedReport.title}</h3>
+                      <p className="text-sm text-muted-foreground mb-4">{selectedReport.description}</p>
+                      
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Category:</span>
+                          <span className="font-medium">{selectedReport.category}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Priority:</span>
+                          <Badge 
+                            variant={selectedReport.priority === "high" ? "destructive" : "secondary"}
+                            className="text-xs"
+                          >
+                            {selectedReport.priority}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Location:</span>
+                          <span className="font-medium text-right">{selectedReport.location_address}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Submitted:</span>
+                          <span className="font-medium">{new Date(selectedReport.created_at).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Status:</span>
+                          <Badge className={`text-xs ${statusConfig[selectedReport.status as keyof typeof statusConfig].color}`}>
+                            {statusConfig[selectedReport.status as keyof typeof statusConfig].label}
+                          </Badge>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Priority:</span>
-                      <Badge 
-                        variant={selectedReport.priority === "high" ? "destructive" : "secondary"}
-                        className="text-xs"
+
+                    {/* Assignment */}
+                    <div className="space-y-3">
+                      <h4 className="font-semibold">Assignment</h4>
+                      
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Department</label>
+                        <Select defaultValue={selectedReport.department || ""}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select department" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Public Works">Public Works</SelectItem>
+                            <SelectItem value="Electrical Dept">Electrical Department</SelectItem>
+                            <SelectItem value="Sanitation">Sanitation</SelectItem>
+                            <SelectItem value="Water Management">Water Management</SelectItem>
+                            <SelectItem value="Traffic Control">Traffic Control</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Assign to</label>
+                        <Select defaultValue={selectedReport.assignee_id || ""}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select assignee" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="john">John Smith</SelectItem>
+                            <SelectItem value="maria">Maria Garcia</SelectItem>
+                            <SelectItem value="david">David Wilson</SelectItem>
+                            <SelectItem value="sarah">Sarah Chen</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Status Update */}
+                    <div className="space-y-3">
+                      <h4 className="font-semibold">Update Status</h4>
+                      
+                      <Select 
+                        defaultValue={selectedReport.status}
+                        onValueChange={(value) => handleStatusUpdate(selectedReport.id, value as ReportStatus)}
                       >
-                        {selectedReport.priority}
-                      </Badge>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="submitted">Submitted</SelectItem>
+                          <SelectItem value="acknowledged">Acknowledged</SelectItem>
+                          <SelectItem value="in_progress">In Progress</SelectItem>
+                          <SelectItem value="resolved">Resolved</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Location:</span>
-                      <span className="font-medium text-right">{selectedReport.location}</span>
+
+                    {/* Internal Note */}
+                    <div className="space-y-3">
+                      <h4 className="font-semibold">Internal Notes</h4>
+                      <Textarea 
+                        placeholder="Add notes for internal team coordination..."
+                        className="min-h-[80px]"
+                        defaultValue={selectedReport.internal_notes || ""}
+                      />
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Submitted:</span>
-                      <span className="font-medium">{selectedReport.submittedAt}</span>
+
+                    {/* Actions */}
+                    <div className="flex space-x-2">
+                      <Button className="flex-1 shadow-button">
+                        Update Report
+                      </Button>
+                      <Button variant="outline">
+                        <MessageSquare className="w-4 h-4 mr-2" />
+                        Message Citizen
+                      </Button>
                     </div>
+                  </>
+                ) : (
+                  <div className="text-center text-muted-foreground py-8">
+                    Select a report to view details
                   </div>
-                </div>
-
-                {/* Assignment */}
-                <div className="space-y-3">
-                  <h4 className="font-semibold">Assignment</h4>
-                  
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Department</label>
-                    <Select defaultValue={selectedReport.department}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Public Works">Public Works</SelectItem>
-                        <SelectItem value="Electrical Dept">Electrical Department</SelectItem>
-                        <SelectItem value="Sanitation">Sanitation</SelectItem>
-                        <SelectItem value="Water Management">Water Management</SelectItem>
-                        <SelectItem value="Traffic Control">Traffic Control</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Assign to</label>
-                    <Select defaultValue={selectedReport.assignee || ""}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select assignee" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="john">John Smith</SelectItem>
-                        <SelectItem value="maria">Maria Garcia</SelectItem>
-                        <SelectItem value="david">David Wilson</SelectItem>
-                        <SelectItem value="sarah">Sarah Chen</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Status Update */}
-                <div className="space-y-3">
-                  <h4 className="font-semibold">Update Status</h4>
-                  
-                  <Select defaultValue={selectedReport.status}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="submitted">Submitted</SelectItem>
-                      <SelectItem value="acknowledged">Acknowledged</SelectItem>
-                      <SelectItem value="in_progress">In Progress</SelectItem>
-                      <SelectItem value="resolved">Resolved</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Internal Note */}
-                <div className="space-y-3">
-                  <h4 className="font-semibold">Add Internal Note</h4>
-                  <Textarea 
-                    placeholder="Add notes for internal team coordination..."
-                    className="min-h-[80px]"
-                  />
-                </div>
-
-                {/* Actions */}
-                <div className="flex space-x-2">
-                  <Button className="flex-1 shadow-button">
-                    Update Report
-                  </Button>
-                  <Button variant="outline">
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    Message Citizen
-                  </Button>
-                </div>
+                )}
               </CardContent>
             </Card>
           </div>
