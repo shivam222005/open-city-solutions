@@ -5,6 +5,7 @@ import { Camera, MapPin, Bell, Shield, TrendingUp, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import heroImage from "@/assets/civic-hero.jpg";
+import civicLogo from "@/assets/civic-connect-logo.png";
 
 export default function Home() {
   const { user, signOut } = useAuth();
@@ -19,16 +20,14 @@ export default function Home() {
       <header className="border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-              <Shield className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <h1 className="text-xl font-bold text-foreground">MobileAse</h1>
+            <img src={civicLogo} alt="CivicConnect" className="w-8 h-8" />
+            <h1 className="text-xl font-bold text-foreground">CivicConnect</h1>
           </div>
           <nav className="hidden md:flex items-center space-x-6">
             <Link to="/feed" className="text-muted-foreground hover:text-foreground transition-colors">
               See Reports
             </Link>
-            <Link to="/admin" className="text-muted-foreground hover:text-foreground transition-colors">
+            <Link to="/admin-auth" className="text-muted-foreground hover:text-foreground transition-colors">
               Admin
             </Link>
             {!user ? (
@@ -183,10 +182,8 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center space-x-2 mb-4">
-                <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                  <Shield className="w-5 h-5 text-primary-foreground" />
-                </div>
-                <span className="text-xl font-bold">MobileAse</span>
+                <img src={civicLogo} alt="CivicConnect" className="w-8 h-8" />
+                <span className="text-xl font-bold">CivicConnect</span>
               </div>
               <p className="text-muted-foreground">
                 Making cities better, one report at a time.
@@ -218,7 +215,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t mt-8 pt-8 text-center text-muted-foreground">
-            <p>&copy; 2025 MobileAse. Making civic engagement transparent and effective.</p>
+            <p>&copy; 2025 CivicConnect. Making civic engagement transparent and effective.</p>
           </div>
         </div>
       </footer>
